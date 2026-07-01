@@ -1,0 +1,21 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: loan-workflow-service
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      retries: 3
+      acks: all
+
+zeebe:
+  client:
+    broker:
+      gateway-address: ${ZEEBE_GATEWAY_ADDRESS:127.0.0.1:26500}
+    security:
+      plaintext: true

@@ -1,0 +1,161 @@
+version: '3.8'
+
+services:
+  # --- Edge Router (Spring Cloud Gateway) ---
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway-multi
+    ports:
+      - "8080:8080"
+    environment:
+      ACCOUNT_SERVICE_URL: http://account-management-service:8083
+      LOAN_SERVICE_URL: http://loan-workflow-service:8081
+    depends_on:
+      - account-management-service
+      - loan-workflow-service
+    networks:
+      - finstream-net-multi
+
+  # --- Account Management Service ---
+  account-management-service:
+    build:
+      context: ./account-management-service
+      dockerfile: Dockerfile
+    container_name: account-management-service-multi
+    expose:
+      - "8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://finstream-db-multi:5432/finstream_accounts
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      finstream-db:
+        condition: service_healthy
+    networks:
+      - finstream-net-multi
+
+  # --- Loan Workflow Service ---
+  loan-workflow-service:
+    build:
+      context: ./loan-workflow-service
+      dockerfile: Dockerfile
+    container_name: loan-workflow-service-multi
+    expose:
+      - "8081"
+    environment:
+      ZEEBE_GATEWAY_ADDRESS: zeebe:26500
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      FINSTREAM_ACCOUNT_SERVICE_URL: http://account-management-service:8083
+    depends_on:
+      - zeebe
+      - kafka
+      - account-management-service
+    networks:
+      - finstream-net-multi
+
+  # --- Notification Audit Service ---
+  notification-audit-service:
+    build:
+      context: ./notification-audit-service
+      dockerfile: Dockerfile
+    container_name: notification-audit-service-multi
+    expose:
+      - "8082"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      - kafka
+    networks:
+      - finstream-net-multi
+
+  # --- Relational Database (PostgreSQL) ---
+  finstream-db:
+    image: postgres:16-alpine
+    container_name: finstream-db-multi
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: finstream_accounts
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d finstream_accounts"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - db-data-multi:/var/lib/postgresql/data
+    networks:
+      - finstream-net-multi
+
+  # --- Apache Kafka broker & Zookeeper ---
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper-multi
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - finstream-net-multi
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-multi
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+    networks:
+      - finstream-net-multi
+
+  # --- Camunda 8 Zeebe Engine & Elasticsearch Exporter ---
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.22
+    container_name: elasticsearch-multi
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cat/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - finstream-net-multi
+
+  zeebe:
+    image: camunda/zeebe:8.5.5
+    container_name: zeebe-multi
+    ports:
+      - "26500:26500"
+      - "9600:9600"
+    environment:
+      - ZEEBE_BROKER_GATEWAY_ENABLE=true
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_CLASSNAME=io.camunda.zeebe.exporter.ElasticsearchExporter
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_URL=http://elasticsearch:9200
+      - ZEEBE_BROKER_EXPORTERS_ELASTICSEARCH_ARGS_BULK_DELAY=1
+      - ZEEBE_LOG_LEVEL=info
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - finstream-net-multi
+
+volumes:
+  db-data-multi:
+
+networks:
+  finstream-net-multi:
+    driver: bridge
