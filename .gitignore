@@ -1,0 +1,27 @@
+# Maven Target directory
+target/
+*.jar
+*.war
+*.ear
+
+# Node modules
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Logs
+*.log
+logs/
+
+# IDE / System files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Docker data directory
+db-data/
+db-data-multi/
