@@ -33,7 +33,8 @@
 
 Rather than just describing these patterns, FinStream ships with **two interactive resiliency simulations** (circuit breaker trip + DLQ recovery) so you can watch the system degrade gracefully and self-heal, end to end.
 
-> 📸 *Add screenshots or a GIF here — the compliance dashboard with the Circuit Breaker telemetry badge (CLOSED/OPEN) and the DLQ recovery flow are great visuals to lead with.*
+<img width="1276" height="699" alt="Screenshot 2026-07-15 at 2 18 58 PM" src="https://github.com/user-attachments/assets/c67237aa-a6c2-40e7-abf1-6d54adb4443e" />
+
 
 ---
 
